@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  airflow:
+    build: .
+    container_name: apod_airflow
+    restart: unless-stopped
+    environment:
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - PYTHONUNBUFFERED=1
+      # Postgres target for ETL
+      - POSTGRES_HOST=pgdata
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=apod
+      - POSTGRES_USER=mlops
+      - POSTGRES_PASSWORD=mlops
+      # Optional: provide to enable git push from DAG
+      - GIT_REMOTE_URL=${GIT_REMOTE_URL}
+      - GIT_USER_NAME=${GIT_USER_NAME:-airflow-bot}
+      - GIT_USER_EMAIL=${GIT_USER_EMAIL:-airflow-bot@example.com}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./include:/opt/airflow/include
+      - ./.git:/opt/airflow/.git
+      - ./.dvc:/opt/airflow/.dvc
+      - ./.gitignore:/opt/airflow/.gitignore
+    depends_on:
+      - pgdata
+
+  pgdata:
+    image: postgres:15
+    container_name: apod_pg
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=apod
+      - POSTGRES_USER=mlops
+      - POSTGRES_PASSWORD=mlops
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata_volume:/var/lib/postgresql/data
+
+volumes:
+  pgdata_volume:
