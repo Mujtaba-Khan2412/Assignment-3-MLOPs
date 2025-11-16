@@ -22,14 +22,14 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./dags:/opt/airflow/dags
-      - ./data:/opt/airflow/data
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - ./include:/opt/airflow/include
-      - ./.git:/opt/airflow/.git
-      - ./.dvc:/opt/airflow/.dvc
-      - ./.gitignore:/opt/airflow/.gitignore
+      - ./dags:/usr/local/airflow/dags
+      - ./data:/usr/local/airflow/data
+      - ./logs:/usr/local/airflow/logs
+      - ./plugins:/usr/local/airflow/plugins
+      - ./include:/usr/local/airflow/include
+      - ./.git:/usr/local/airflow/.git
+      - ./.dvc:/usr/local/airflow/.dvc
+      - ./.gitignore:/usr/local/airflow/.gitignore
     depends_on:
       - pgdata
 

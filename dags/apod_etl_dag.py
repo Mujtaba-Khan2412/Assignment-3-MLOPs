@@ -15,7 +15,9 @@ from airflow.operators.python import PythonOperator
 
 
 NASA_APOD_URL = "https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY"
-DATA_DIR = Path("/opt/airflow/data")
+# Resolve Airflow home to support both Apache Airflow (/opt/airflow) and Astronomer Runtime (/usr/local/airflow)
+AIRFLOW_HOME = os.getenv("AIRFLOW_HOME", "/opt/airflow")
+DATA_DIR = Path(AIRFLOW_HOME) / "data"
 CSV_PATH = DATA_DIR / "apod_data.csv"
 
 # Postgres config from env
@@ -103,7 +105,7 @@ def load_callable(ti, **_):
 
 
 def dvc_callable(**_):
-    cwd = "/opt/airflow"
+    cwd = AIRFLOW_HOME
     # Initialize DVC if not already
     if not Path(os.path.join(cwd, ".dvc")).exists():
         subprocess.run(["dvc", "init", "-q"], cwd=cwd, check=True)
@@ -112,7 +114,7 @@ def dvc_callable(**_):
 
 
 def git_callable(**_):
-    cwd = "/opt/airflow"
+    cwd = AIRFLOW_HOME
     # Initialize git if needed
     if not Path(os.path.join(cwd, ".git")).exists():
         subprocess.run(["git", "init"], cwd=cwd, check=True)
@@ -121,6 +123,12 @@ def git_callable(**_):
         # default branch main
         subprocess.run(["git", "checkout", "-b", "main"], cwd=cwd, check=True)
 
+    # Ensure Git treats this path as safe (container user vs host ownership)
+    subprocess.run(["git", "config", "--global", "--add", "safe.directory", cwd], check=True)
+    # Ensure identity is set even if repo pre-existed (mounted from host)
+    subprocess.run(["git", "config", "user.name", GIT_USER_NAME], cwd=cwd, check=False)
+    subprocess.run(["git", "config", "user.email", GIT_USER_EMAIL], cwd=cwd, check=False)
+
     # Add and commit DVC metadata
     subprocess.run(["git", "add", "data/apod_data.csv.dvc", ".dvc", ".gitignore"], cwd=cwd, check=True)
     # It's ok if nothing to commit (avoid error)
@@ -128,10 +136,12 @@ def git_callable(**_):
 
     # Optionally push to remote
     if GIT_REMOTE_URL:
-        # add origin if missing
+        # ensure origin exists and points to provided URL (updates if already present)
         remotes = subprocess.check_output(["git", "remote"], cwd=cwd).decode().strip().splitlines()
         if "origin" not in remotes:
             subprocess.run(["git", "remote", "add", "origin", GIT_REMOTE_URL], cwd=cwd, check=True)
+        else:
+            subprocess.run(["git", "remote", "set-url", "origin", GIT_REMOTE_URL], cwd=cwd, check=True)
         # ensure main
         subprocess.run(["git", "branch", "-M", "main"], cwd=cwd, check=False)
         # push (upstream)
@@ -145,9 +155,10 @@ default_args = {
 with DAG(
     dag_id="apod_etl_dvc_git",
     default_args=default_args,
-    start_date=datetime(2025, 1, 1),
+    # Limit historical backfill to last 7 days for demo rather than entire year
+    start_date=datetime(2025, 11, 10),
     schedule_interval="@daily",
-    catchup=False,
+    catchup=True,
     tags=["apod", "etl", "dvc", "git"],
 ) as dag:
     extract = PythonOperator(task_id="extract", python_callable=extract_callable)

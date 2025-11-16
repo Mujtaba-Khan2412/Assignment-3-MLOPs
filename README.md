@@ -65,17 +65,28 @@ docker exec -it apod_airflow bash -lc "airflow dags list; airflow dags trigger a
 
 ## How It Works
 
-- `dags/apod_etl_dag.py` defines five tasks: extract → transform → load → dvc track → git commit/push
-- Data is appended to `data/apod_data.csv` and upserted into Postgres table `apod`.
-- DVC is initialized and `data/apod_data.csv` is tracked creating `data/apod_data.csv.dvc`.
-- If `GIT_REMOTE_URL` is defined, changes are pushed to GitHub as part of the DAG.
-
 ## Switching to Astronomer Runtime
 
-The Dockerfile uses the official Airflow base image for broad compatibility. To use Astronomer Runtime, change the base image line in `Dockerfile` to something like:
+## Astronomer Runtime
+
+This project now uses an Astronomer Runtime base image (`quay.io/astronomer/astro-runtime:10.3.0`) for production parity. The container runs both scheduler and webserver processes. Rebuild anytime after changes:
 
 ```
-# FROM quay.io/astronomer/astro-runtime:<version>
+docker compose build
+docker compose up -d --force-recreate
+```
+
+## Daily Scheduling & Historical Runs
+
+The DAG is scheduled `@daily` with `catchup=True` and a `start_date` set 7 days prior to current date to generate multiple historical runs for demo. After unpausing the DAG, Airflow scheduler will create a run for each missing day automatically.
+To observe:
+
+```
+docker exec -it apod_airflow bash -lc "airflow dags list-runs -d apod_etl_dvc_git"
+```
+
+If you need a longer history (e.g., 30 days), change `start_date` in `dags/apod_etl_dag.py` and unpause again.
+
 ```
 
 Then rebuild: `docker compose build`.
@@ -83,23 +94,34 @@ Then rebuild: `docker compose build`.
 ## Useful Commands
 
 ```
+
 # Check services
+
 docker compose ps
 
 # Logs
+
 docker logs -f apod_airflow
 
 # PSQL into the Postgres (host port 5433)
+
 # Requires psql on host or use the container
+
 # docker exec -it apod_pg psql -U mlops -d apod
 
 # List DAGs and trigger
+
 docker exec -it apod_airflow bash -lc "airflow dags list"
 docker exec -it apod_airflow bash -lc "airflow dags trigger apod_etl_dvc_git"
+
 ```
 
 ## Cleanup
 
 ```
+
 docker compose down -v
+
+```
+
 ```
