@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 .venv/
 
+# Environment
+.env
+
 # Airflow
 logs/
 
